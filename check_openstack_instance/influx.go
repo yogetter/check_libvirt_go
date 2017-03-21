@@ -22,7 +22,7 @@ func (d *db) init() {
 func (d *db) insertVmInfo(VM instance) {
 	// Create a new HTTPClient
 	c, err := client.NewHTTPClient(client.HTTPConfig{
-		Addr:     "http://172.22.131.70:8086",
+		Addr:     "http://localhost:8086",
 		Username: d.username,
 		Password: d.password,
 	})
