@@ -17,36 +17,31 @@ type instance struct {
 
 func (s *instance) setCpuValue(CpuCore int, conn *libvirt.Connect) {
 	info, err := s.dom.GetInfo()
-	if err != nil {
-	}
+	checkError(err)
 	startTime := info.CpuTime
 	s.refreshDomain(conn)
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 	info, err = s.dom.GetInfo()
-	if err != nil {
-	}
+	checkError(err)
 	endTime := info.CpuTime
 	usedTime := (endTime - startTime) / 1000
-	s.CpuUsage = float32(usedTime) / float32((10 * 1000000 * CpuCore))
+	s.CpuUsage = float32(usedTime) / float32((5 * 1000000 * CpuCore))
 	s.CpuUsage *= 100
 }
 
 func (s *instance) setMemValue() {
 	id, err := s.dom.GetUUIDString()
-	if err != nil {
-	}
+	checkError(err)
 	mem, err := s.dom.MemoryStats(10, 0)
 	s.Id = id
-	if err != nil {
-	} else {
-		for _, stat := range mem {
-			if stat.Tag == 4 {
-				s.UnUsed = stat.Val
-			} else if stat.Tag == 6 {
-				s.Total = stat.Val
-			}
-			s.Used = s.Total - s.UnUsed
+	checkError(err)
+	for _, stat := range mem {
+		if stat.Tag == 4 {
+			s.UnUsed = stat.Val * 1024
+		} else if stat.Tag == 6 {
+			s.Total = stat.Val * 1024
 		}
+		s.Used = s.Total - s.UnUsed
 	}
 }
 func (s instance) getValue() {
@@ -59,7 +54,6 @@ func (s instance) getValue() {
 }
 func (s *instance) refreshDomain(conn *libvirt.Connect) {
 	dom, err := conn.LookupDomainByUUIDString(s.Id)
-	if err != nil {
-	}
+	checkError(err)
 	s.dom = dom
 }

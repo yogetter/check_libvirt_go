@@ -2,11 +2,14 @@ package main
 
 import (
 	libvirt "github.com/libvirt/libvirt-go"
+	"log"
 	"runtime"
+	"time"
 )
 
-func checError(err error) {
+func checkError(err error) {
 	if err != nil {
+		log.Fatal(err)
 	}
 }
 func start() {
@@ -14,25 +17,27 @@ func start() {
 	influx.init()
 	CpuCore := runtime.NumCPU()
 	conn, err := libvirt.NewConnect("qemu:///system")
-	if err != nil {
-	}
+	checkError(err)
 	defer conn.Close()
 
 	doms, err := conn.ListAllDomains(libvirt.CONNECT_LIST_DOMAINS_ACTIVE)
-	if err != nil {
-	}
+	checkError(err)
 	VMs := make([]instance, len(doms))
 
 	for i, dom := range doms {
 		VMs[i].dom = &dom
 		VMs[i].setMemValue()
 		VMs[i].setCpuValue(CpuCore, conn)
-		//VMs[i].getValue()
 		influx.insertVmInfo(VMs[i])
 		dom.Free()
 	}
 
 }
 func main() {
-	start()
+	for {
+		log.Println("Start collect VM's information")
+		start()
+		log.Println("End of collect")
+		time.Sleep(60 * time.Second)
+	}
 }
