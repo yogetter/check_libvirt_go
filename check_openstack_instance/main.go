@@ -28,10 +28,12 @@ func start() {
 		VMs[i].dom = &dom
 		VMs[i].setMemValue()
 		VMs[i].setCpuValue(CpuCore, conn)
+		VMs[i].getDevice()
+		VMs[i].setInterfaceValue(conn)
 		influx.insertVmInfo(VMs[i])
 		dom.Free()
 	}
-
+	conn.Close()
 }
 func main() {
 	for {

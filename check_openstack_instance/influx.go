@@ -31,15 +31,9 @@ func (d *db) init() {
 func (d *db) insertVmInfo(VM instance) {
 	// Create a new HTTPClient
 	c, err := client.NewHTTPClient(client.HTTPConfig{
-<<<<<<< HEAD
 		Addr:     d.Url,
 		Username: d.Username,
 		Password: d.Password,
-=======
-		Addr:     "http://localhost:8086",
-		Username: d.username,
-		Password: d.password,
->>>>>>> 4e50b27e980d1dc6fc72498388b29eeadb959ac0
 	})
 	checkError(err)
 	// Create a new point batch
@@ -55,6 +49,8 @@ func (d *db) insertVmInfo(VM instance) {
 		"Used":     VM.Used,
 		"UnUsed":   VM.UnUsed,
 		"CpuUsage": VM.CpuUsage,
+		"Rx":       VM.InBytes,
+		"Tx":       VM.OutBytes,
 	}
 	log.Println("Send VM information:", tags, fields)
 	pt, err := client.NewPoint("vm_usage", tags, fields, time.Now())

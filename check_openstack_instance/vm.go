@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	libvirt "github.com/libvirt/libvirt-go"
+	"strings"
 	"time"
 )
 
@@ -12,6 +13,9 @@ type instance struct {
 	UnUsed   uint64
 	Used     uint64
 	CpuUsage float32
+	InBytes  int64
+	OutBytes int64
+	Device   string
 	dom      *libvirt.Domain
 }
 
@@ -43,6 +47,26 @@ func (s *instance) setMemValue() {
 		}
 		s.Used = s.Total - s.UnUsed
 	}
+}
+func (s *instance) getDevice() {
+	xml, err := s.dom.GetXMLDesc(1)
+	checkError(err)
+	tmp := strings.SplitAfter(xml, "<target dev=")[2]
+	tmp = strings.SplitAfter(tmp, "'")[1]
+	s.Device = tmp[0 : len(tmp)-1]
+
+}
+func (s *instance) setInterfaceValue(conn *libvirt.Connect) {
+	ifstat, err := s.dom.InterfaceStats(s.Device)
+	checkError(err)
+	inBefore := ifstat.RxBytes
+	outBefore := ifstat.TxBytes
+	time.Sleep(1 * time.Second)
+	s.refreshDomain(conn)
+	ifstat, err = s.dom.InterfaceStats(s.Device)
+	checkError(err)
+	s.InBytes = ifstat.RxBytes - inBefore
+	s.OutBytes = ifstat.TxBytes - outBefore
 }
 func (s instance) getValue() {
 	fmt.Println("VM：")
