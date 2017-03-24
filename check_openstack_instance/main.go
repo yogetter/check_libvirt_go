@@ -13,13 +13,8 @@ func checkError(err error) {
 	}
 }
 func start() {
-	influx := db{}
-	influx.init()
-	CpuCore := runtime.NumCPU()
 	conn, err := libvirt.NewConnect("qemu:///system")
 	checkError(err)
-	defer conn.Close()
-
 	doms, err := conn.ListAllDomains(libvirt.CONNECT_LIST_DOMAINS_ACTIVE)
 	checkError(err)
 	VMs := make([]instance, len(doms))
@@ -29,13 +24,22 @@ func start() {
 		VMs[i].setMemValue()
 		VMs[i].setCpuValue(CpuCore, conn)
 		VMs[i].getDevice()
+		//VMs[i].getValue()
 		VMs[i].setInterfaceValue(conn)
 		influx.insertVmInfo(VMs[i])
-		dom.Free()
+		VMs[i].dom.Free()
 	}
 	conn.Close()
 }
+
+var influx db
+var CpuCore int
+
 func main() {
+	influx = db{}
+	influx.init()
+	CpuCore = runtime.NumCPU()
+
 	for {
 		log.Println("Start collect VM's information")
 		start()

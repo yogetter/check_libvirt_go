@@ -79,5 +79,7 @@ func (s instance) getValue() {
 func (s *instance) refreshDomain(conn *libvirt.Connect) {
 	dom, err := conn.LookupDomainByUUIDString(s.Id)
 	checkError(err)
+	s.dom.Free()
 	s.dom = dom
+
 }

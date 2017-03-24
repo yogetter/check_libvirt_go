@@ -25,7 +25,7 @@ func (d *db) init() {
 	log.Println("DB Name:", d.Db)
 	log.Println("DB Username:", d.Username)
 	log.Println("DB Password:", d.Password)
-
+	file.Close()
 }
 
 func (d *db) insertVmInfo(VM instance) {
@@ -61,4 +61,5 @@ func (d *db) insertVmInfo(VM instance) {
 	if err := c.Write(bp); err != nil {
 		log.Fatal(err)
 	}
+	c.Close()
 }
