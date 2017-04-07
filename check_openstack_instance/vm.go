@@ -9,13 +9,14 @@ import (
 
 type instance struct {
 	Id       string
-	Total    uint64
-	UnUsed   uint64
-	Used     uint64
+	Total    int64
+	UnUsed   int64
+	Used     int64
 	CpuUsage float32
 	InBytes  int64
 	OutBytes int64
 	Device   string
+	Hostname string
 	dom      *libvirt.Domain
 }
 
@@ -41,9 +42,9 @@ func (s *instance) setMemValue() {
 	checkError(err)
 	for _, stat := range mem {
 		if stat.Tag == 4 {
-			s.UnUsed = stat.Val * 1024
+			s.UnUsed = int64(stat.Val * 1024)
 		} else if stat.Tag == 6 {
-			s.Total = stat.Val * 1024
+			s.Total = int64(stat.Val * 1024)
 		}
 		s.Used = s.Total - s.UnUsed
 	}

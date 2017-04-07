@@ -15,11 +15,15 @@ type db struct {
 	Password string
 }
 
+var Hostname string
+
 func (d *db) init() {
 	//read config
 	file, _ := os.Open("conf.json")
 	decoder := json.NewDecoder(file)
 	err := decoder.Decode(d)
+	checkError(err)
+	Hostname, err = os.Hostname()
 	checkError(err)
 	log.Println("DB URL:", d.Url)
 	log.Println("DB Name:", d.Db)
@@ -43,7 +47,7 @@ func (d *db) insertVmInfo(VM instance) {
 	})
 	checkError(err)
 	// Create a point and add to batch
-	tags := map[string]string{"uuid": VM.Id}
+	tags := map[string]string{"uuid": VM.Id, "Hostname": Hostname}
 	fields := map[string]interface{}{
 		"Total":    VM.Total,
 		"Used":     VM.Used,
