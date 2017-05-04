@@ -19,7 +19,7 @@ var Hostname string
 
 func (d *db) init() {
 	//read config
-	file, _ := os.Open("conf.json")
+	file, _ := os.Open("db_conf.json")
 	decoder := json.NewDecoder(file)
 	err := decoder.Decode(d)
 	checkError(err)

@@ -52,10 +52,10 @@ func (s *instance) setMemValue() {
 func (s *instance) getDevice() {
 	xml, err := s.dom.GetXMLDesc(1)
 	checkError(err)
-	tmp := strings.SplitAfter(xml, "<target dev=")[2]
+	tmp := strings.SplitAfter(xml, "<interface type='bridge'>")[1]
+	tmp = strings.SplitAfter(tmp, "<target dev=")[1]
 	tmp = strings.SplitAfter(tmp, "'")[1]
 	s.Device = tmp[0 : len(tmp)-1]
-
 }
 func (s *instance) setInterfaceValue(conn *libvirt.Connect) {
 	ifstat, err := s.dom.InterfaceStats(s.Device)
