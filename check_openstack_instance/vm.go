@@ -4,34 +4,65 @@ import (
 	"fmt"
 	libvirt "github.com/libvirt/libvirt-go"
 	"strings"
-	"time"
 )
 
 type instance struct {
-	Id       string
-	Total    int64
-	UnUsed   int64
-	Used     int64
-	CpuUsage float32
-	InBytes  int64
-	OutBytes int64
-	Device   string
-	Hostname string
-	dom      *libvirt.Domain
+	Id        string
+	MemTotal  int64
+	MemUnUsed int64
+	MemUsed   int64
+	CpuUsage  float32
+	CpuTime   uint64
+	InBytes   int64
+	OutBytes  int64
+	NicDevice string
+	BkTotal   []int64
+	BkDevice  []string
+	BkWBytes  []int64
+	BkRBytes  []int64
+	dom       *libvirt.Domain
 }
 
-func (s *instance) setCpuValue(CpuCore int, conn *libvirt.Connect) {
+func (s *instance) getBlockDev() {
+	xml, err := s.dom.GetXMLDesc(1)
+	checkError(err)
+	//Get HDD
+	blk_devs := strings.Count(xml, "'vd")
+	s.BkDevice = make([]string, blk_devs)
+	for i := 0; i < blk_devs; i++ {
+		s.BkDevice[i] = "vd" + string(i+97)
+	}
+	s.BkWBytes = make([]int64, len(s.BkDevice), len(s.BkDevice))
+	s.BkRBytes = make([]int64, len(s.BkDevice), len(s.BkDevice))
+	s.BkTotal = make([]int64, len(s.BkDevice), len(s.BkDevice))
+}
+func (s *instance) getNicDevice() {
+	xml, err := s.dom.GetXMLDesc(1)
+	checkError(err)
+	//Get Nic
+	tmp := strings.SplitAfter(xml, "<interface type='bridge'>")[1]
+	tmp = strings.SplitAfter(tmp, "<target dev=")[1]
+	tmp = strings.SplitAfter(tmp, "'")[1]
+	s.NicDevice = tmp[0 : len(tmp)-1]
+}
+func (s *instance) setBlockStats() {
+	i := 0
+	for _, dev := range s.BkDevice {
+		stats, err := s.dom.BlockStats(dev)
+		checkError(err)
+		info, err := s.dom.GetBlockInfo(dev, 0)
+		checkError(err)
+		s.BkWBytes[i] = stats.WrBytes
+		s.BkRBytes[i] = stats.RdBytes
+		s.BkTotal[i] = int64(info.Capacity)
+		i++
+
+	}
+}
+func (s *instance) setCpuValue(CpuCore int) {
 	info, err := s.dom.GetInfo()
 	checkError(err)
-	startTime := info.CpuTime
-	s.refreshDomain(conn)
-	time.Sleep(5 * time.Second)
-	info, err = s.dom.GetInfo()
-	checkError(err)
-	endTime := info.CpuTime
-	usedTime := (endTime - startTime) / 1000
-	s.CpuUsage = float32(usedTime) / float32((5 * 1000000 * CpuCore))
-	s.CpuUsage *= 100
+	s.CpuTime = info.CpuTime
 }
 
 func (s *instance) setMemValue() {
@@ -42,45 +73,39 @@ func (s *instance) setMemValue() {
 	checkError(err)
 	for _, stat := range mem {
 		if stat.Tag == 4 {
-			s.UnUsed = int64(stat.Val * 1024)
+			s.MemUnUsed = int64(stat.Val * 1024)
 		} else if stat.Tag == 6 {
-			s.Total = int64(stat.Val * 1024)
+			s.MemTotal = int64(stat.Val * 1024)
 		}
-		s.Used = s.Total - s.UnUsed
+		s.MemUsed = s.MemTotal - s.MemUnUsed
 	}
 }
-func (s *instance) getDevice() {
-	xml, err := s.dom.GetXMLDesc(1)
+func (s *instance) setInterfaceValue() {
+	ifstat, err := s.dom.InterfaceStats(s.NicDevice)
 	checkError(err)
-	tmp := strings.SplitAfter(xml, "<interface type='bridge'>")[1]
-	tmp = strings.SplitAfter(tmp, "<target dev=")[1]
-	tmp = strings.SplitAfter(tmp, "'")[1]
-	s.Device = tmp[0 : len(tmp)-1]
-}
-func (s *instance) setInterfaceValue(conn *libvirt.Connect) {
-	ifstat, err := s.dom.InterfaceStats(s.Device)
-	checkError(err)
-	inBefore := ifstat.RxBytes
-	outBefore := ifstat.TxBytes
-	time.Sleep(1 * time.Second)
-	s.refreshDomain(conn)
-	ifstat, err = s.dom.InterfaceStats(s.Device)
-	checkError(err)
-	s.InBytes = ifstat.RxBytes - inBefore
-	s.OutBytes = ifstat.TxBytes - outBefore
+	s.InBytes = ifstat.RxBytes
+	s.OutBytes = ifstat.TxBytes
 }
 func (s instance) getValue() {
 	fmt.Println("VM：")
 	fmt.Println("Uuid: ", s.Id)
-	fmt.Println("Total: ", s.Total)
-	fmt.Println("Used: ", s.Used)
-	fmt.Println("UnUsed: ", s.UnUsed)
+	fmt.Println("Total: ", s.MemTotal)
+	fmt.Println("Used: ", s.MemUsed)
+	fmt.Println("UnUsed: ", s.MemUnUsed)
 	fmt.Println("CPU: ", s.CpuUsage)
+	fmt.Println("WrBytes: ", s.BkWBytes)
+	fmt.Println("BkDevice: ", s.BkDevice)
+	fmt.Println("BkTotal: ", s.BkTotal)
 }
-func (s *instance) refreshDomain(conn *libvirt.Connect) {
-	dom, err := conn.LookupDomainByUUIDString(s.Id)
-	checkError(err)
-	s.dom.Free()
-	s.dom = dom
+func (s *instance) setAllValue(tmp instance, CpuCore int) {
+	usedTime := (s.CpuTime - tmp.CpuTime) / 1000
+	s.CpuUsage = float32(usedTime) / float32((60 * 1000000 * CpuCore))
+	s.CpuUsage *= 100
+	s.InBytes = (s.InBytes - tmp.InBytes) / 60
+	s.OutBytes = (s.OutBytes - tmp.OutBytes) / 60
+	for i := 0; i < len(s.BkDevice); i++ {
+		s.BkWBytes[i] = s.BkWBytes[i] - tmp.BkWBytes[i]
+		s.BkRBytes[i] = s.BkRBytes[i] - tmp.BkRBytes[i]
 
+	}
 }

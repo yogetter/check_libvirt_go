@@ -41,29 +41,34 @@ func (d *db) insertVmInfo(VM instance) {
 	})
 	checkError(err)
 	// Create a new point batch
-	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:  d.Db,
-		Precision: "s",
-	})
-	checkError(err)
-	// Create a point and add to batch
-	tags := map[string]string{"uuid": VM.Id, "Hostname": Hostname}
-	fields := map[string]interface{}{
-		"Total":    VM.Total,
-		"Used":     VM.Used,
-		"UnUsed":   VM.UnUsed,
-		"CpuUsage": VM.CpuUsage,
-		"Rx":       VM.InBytes,
-		"Tx":       VM.OutBytes,
-	}
-	log.Println("Send VM information:", tags, fields)
-	pt, err := client.NewPoint("vm_usage", tags, fields, time.Now())
-	checkError(err)
-	bp.AddPoint(pt)
+	for i := 0; i < len(VM.BkDevice); i++ {
+		bp, err := client.NewBatchPoints(client.BatchPointsConfig{
+			Database:  d.Db,
+			Precision: "s",
+		})
+		checkError(err)
+		// Create a point and add to batch
+		tags := map[string]string{"uuid": VM.Id, "Hostname": Hostname, "BkDev": VM.BkDevice[i]}
+		fields := map[string]interface{}{
+			"Total":    VM.MemTotal,
+			"Used":     VM.MemUsed,
+			"UnUsed":   VM.MemUnUsed,
+			"CpuUsage": VM.CpuUsage,
+			"Rx":       VM.InBytes,
+			"Tx":       VM.OutBytes,
+			"BkTotal":  VM.BkTotal[i],
+			"BkWr":     VM.BkWBytes[i],
+			"BkRd":     VM.BkRBytes[i],
+		}
+		log.Println("Send VM information:", tags, fields)
+		pt, err := client.NewPoint("vm_usage", tags, fields, time.Now())
+		checkError(err)
+		bp.AddPoint(pt)
 
-	// Write the batch
-	if err := c.Write(bp); err != nil {
-		log.Fatal(err)
+		// Write the batch
+		if err := c.Write(bp); err != nil {
+			log.Fatal(err)
+		}
 	}
 	c.Close()
 }
