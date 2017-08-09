@@ -18,15 +18,18 @@ func checkError(err error) {
 		log.Fatal(err)
 	}
 }
+
 func getVmStats(VM *instance, dom *libvirt.Domain) {
 	VM.dom = dom
-	VM.getNicDevice()
+	VM.getName()
+	VM.getNicDev()
 	VM.getBlockDev()
 	VM.setMemValue()
 	VM.setCpuValue(CpuCore)
 	VM.setBlockStats()
 	VM.setInterfaceValue()
 }
+
 func start() {
 	conn, err := libvirt.NewConnect("qemu:///system")
 	checkError(err)

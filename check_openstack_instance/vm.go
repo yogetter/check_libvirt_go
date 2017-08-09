@@ -8,6 +8,7 @@ import (
 
 type instance struct {
 	Id        string
+	Name      string
 	MemTotal  int64
 	MemUnUsed int64
 	MemUsed   int64
@@ -23,6 +24,13 @@ type instance struct {
 	dom       *libvirt.Domain
 }
 
+func (s *instance) getName() {
+	xml, err := s.dom.GetXMLDesc(1)
+	checkError(err)
+	tmp := strings.SplitAfter(xml, "<nova:name>")[1]
+	s.Name = strings.Split(tmp, "</nova:name>")[0]
+}
+
 func (s *instance) getBlockDev() {
 	xml, err := s.dom.GetXMLDesc(1)
 	checkError(err)
@@ -36,15 +44,17 @@ func (s *instance) getBlockDev() {
 	s.BkRBytes = make([]int64, len(s.BkDevice), len(s.BkDevice))
 	s.BkTotal = make([]int64, len(s.BkDevice), len(s.BkDevice))
 }
-func (s *instance) getNicDevice() {
+
+func (s *instance) getNicDev() {
 	xml, err := s.dom.GetXMLDesc(1)
 	checkError(err)
 	//Get Nic
 	tmp := strings.SplitAfter(xml, "<interface type='bridge'>")[1]
-	tmp = strings.SplitAfter(tmp, "<target dev=")[1]
-	tmp = strings.SplitAfter(tmp, "'")[1]
-	s.NicDevice = tmp[0 : len(tmp)-1]
+	tmp = strings.SplitAfter(tmp, "<target dev='")[1]
+	tmp = strings.Split(tmp, "'")[1]
+ 	s.NicDevice = strings.Split(tmp, "'")[1]
 }
+
 func (s *instance) setBlockStats() {
 	i := 0
 	for _, dev := range s.BkDevice {
@@ -59,6 +69,7 @@ func (s *instance) setBlockStats() {
 
 	}
 }
+
 func (s *instance) setCpuValue(CpuCore int) {
 	info, err := s.dom.GetInfo()
 	checkError(err)
@@ -80,15 +91,18 @@ func (s *instance) setMemValue() {
 		s.MemUsed = s.MemTotal - s.MemUnUsed
 	}
 }
+
 func (s *instance) setInterfaceValue() {
 	ifstat, err := s.dom.InterfaceStats(s.NicDevice)
 	checkError(err)
 	s.InBytes = ifstat.RxBytes
 	s.OutBytes = ifstat.TxBytes
 }
+
 func (s instance) getValue() {
 	fmt.Println("VM：")
 	fmt.Println("Uuid: ", s.Id)
+	fmt.Println("Name: ", s.Name)
 	fmt.Println("Total: ", s.MemTotal)
 	fmt.Println("Used: ", s.MemUsed)
 	fmt.Println("UnUsed: ", s.MemUnUsed)
@@ -97,6 +111,7 @@ func (s instance) getValue() {
 	fmt.Println("BkDevice: ", s.BkDevice)
 	fmt.Println("BkTotal: ", s.BkTotal)
 }
+
 func (s *instance) setAllValue(tmp instance, CpuCore int) {
 	usedTime := (s.CpuTime - tmp.CpuTime) / 1000
 	s.CpuUsage = float32(usedTime) / float32((60 * 1000000 * CpuCore))

@@ -48,7 +48,7 @@ func (d *db) insertVmInfo(VM instance) {
 		})
 		checkError(err)
 		// Create a point and add to batch
-		tags := map[string]string{"uuid": VM.Id, "Hostname": Hostname, "BkDev": VM.BkDevice[i]}
+		tags := map[string]string{"uuid": VM.Id, "Name": VM.Name, "Hostname": Hostname, "BkDev": VM.BkDevice[i]}
 		fields := map[string]interface{}{
 			"Total":    VM.MemTotal,
 			"Used":     VM.MemUsed,
