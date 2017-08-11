@@ -7,21 +7,16 @@ import (
 )
 
 type instance struct {
-	Id        string
-	Name      string
-	MemTotal  int64
-	MemUnUsed int64
-	MemUsed   int64
-	CpuUsage  float32
-	CpuTime   uint64
-	InBytes   int64
-	OutBytes  int64
-	NicDevice string
-	BkTotal   []int64
-	BkDevice  []string
-	BkWBytes  []int64
-	BkRBytes  []int64
-	dom       *libvirt.Domain
+	Id         string
+	Name       string
+	MemTotal   int64
+	MemUnUsed  int64
+	MemUsed    int64
+	CpuUsage   float32
+	CpuTime    uint64
+	NetStats   []libvirt.DomainStatsNet
+	BlockStats []libvirt.DomainStatsBlock
+	dom        *libvirt.Domain
 }
 
 func (s *instance) getName() {
@@ -31,49 +26,13 @@ func (s *instance) getName() {
 	s.Name = strings.Split(tmp, "</nova:name>")[0]
 }
 
-func (s *instance) getBlockDev() {
-	xml, err := s.dom.GetXMLDesc(1)
-	checkError(err)
-	//Get HDD
-	blk_devs := strings.Count(xml, "'vd")
-	s.BkDevice = make([]string, blk_devs)
-	for i := 0; i < blk_devs; i++ {
-		s.BkDevice[i] = "vd" + string(i+97)
-	}
-	s.BkWBytes = make([]int64, len(s.BkDevice), len(s.BkDevice))
-	s.BkRBytes = make([]int64, len(s.BkDevice), len(s.BkDevice))
-	s.BkTotal = make([]int64, len(s.BkDevice), len(s.BkDevice))
+func (s *instance) setBlockStats(Block []libvirt.DomainStatsBlock) {
+	s.BlockStats = make([]libvirt.DomainStatsBlock, len(Block))
+	s.BlockStats = Block
 }
 
-func (s *instance) getNicDev() {
-	xml, err := s.dom.GetXMLDesc(1)
-	checkError(err)
-	//Get Nic
-	tmp := strings.SplitAfter(xml, "<interface type='bridge'>")[1]
-	tmp = strings.SplitAfter(tmp, "<target dev='")[1]
-	tmp = strings.Split(tmp, "'")[1]
- 	s.NicDevice = strings.Split(tmp, "'")[1]
-}
-
-func (s *instance) setBlockStats() {
-	i := 0
-	for _, dev := range s.BkDevice {
-		stats, err := s.dom.BlockStats(dev)
-		checkError(err)
-		info, err := s.dom.GetBlockInfo(dev, 0)
-		checkError(err)
-		s.BkWBytes[i] = stats.WrBytes
-		s.BkRBytes[i] = stats.RdBytes
-		s.BkTotal[i] = int64(info.Capacity)
-		i++
-
-	}
-}
-
-func (s *instance) setCpuValue(CpuCore int) {
-	info, err := s.dom.GetInfo()
-	checkError(err)
-	s.CpuTime = info.CpuTime
+func (s *instance) setCpuValue(Cpu *libvirt.DomainStatsCPU) {
+	s.CpuTime = Cpu.Time
 }
 
 func (s *instance) setMemValue() {
@@ -92,11 +51,9 @@ func (s *instance) setMemValue() {
 	}
 }
 
-func (s *instance) setInterfaceValue() {
-	ifstat, err := s.dom.InterfaceStats(s.NicDevice)
-	checkError(err)
-	s.InBytes = ifstat.RxBytes
-	s.OutBytes = ifstat.TxBytes
+func (s *instance) setInterfaceValue(Net []libvirt.DomainStatsNet) {
+	s.NetStats = make([]libvirt.DomainStatsNet, len(Net))
+	s.NetStats = Net
 }
 
 func (s instance) getValue() {
@@ -107,20 +64,18 @@ func (s instance) getValue() {
 	fmt.Println("Used: ", s.MemUsed)
 	fmt.Println("UnUsed: ", s.MemUnUsed)
 	fmt.Println("CPU: ", s.CpuUsage)
-	fmt.Println("WrBytes: ", s.BkWBytes)
-	fmt.Println("BkDevice: ", s.BkDevice)
-	fmt.Println("BkTotal: ", s.BkTotal)
+	fmt.Println("BlockStats: ", s.BlockStats)
+	fmt.Println("NetStats: ", s.NetStats)
 }
 
 func (s *instance) setAllValue(tmp instance, CpuCore int) {
 	usedTime := (s.CpuTime - tmp.CpuTime) / 1000
 	s.CpuUsage = float32(usedTime) / float32((60 * 1000000 * CpuCore))
 	s.CpuUsage *= 100
-	s.InBytes = (s.InBytes - tmp.InBytes) / 60
-	s.OutBytes = (s.OutBytes - tmp.OutBytes) / 60
-	for i := 0; i < len(s.BkDevice); i++ {
-		s.BkWBytes[i] = s.BkWBytes[i] - tmp.BkWBytes[i]
-		s.BkRBytes[i] = s.BkRBytes[i] - tmp.BkRBytes[i]
-
+	s.NetStats[0].RxBytes = (s.NetStats[0].RxBytes - tmp.NetStats[0].RxBytes) / 60
+	s.NetStats[0].TxBytes = (s.NetStats[0].TxBytes - tmp.NetStats[0].TxBytes) / 60
+	for i := 0; i < len(s.BlockStats); i++ {
+		s.BlockStats[i].WrBytes = s.BlockStats[i].WrBytes - tmp.BlockStats[i].WrBytes
+		s.BlockStats[i].RdBytes = s.BlockStats[i].RdBytes - tmp.BlockStats[i].RdBytes
 	}
 }

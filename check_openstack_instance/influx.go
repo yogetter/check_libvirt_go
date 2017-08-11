@@ -41,24 +41,24 @@ func (d *db) insertVmInfo(VM instance) {
 	})
 	checkError(err)
 	// Create a new point batch
-	for i := 0; i < len(VM.BkDevice); i++ {
+	for _, Block := range VM.BlockStats {
 		bp, err := client.NewBatchPoints(client.BatchPointsConfig{
 			Database:  d.Db,
 			Precision: "s",
 		})
 		checkError(err)
 		// Create a point and add to batch
-		tags := map[string]string{"uuid": VM.Id, "Name": VM.Name, "Hostname": Hostname, "BkDev": VM.BkDevice[i]}
+		tags := map[string]string{"uuid": VM.Id, "Name": VM.Name, "Hostname": Hostname, "BkDev": Block.Name}
 		fields := map[string]interface{}{
 			"Total":    VM.MemTotal,
 			"Used":     VM.MemUsed,
 			"UnUsed":   VM.MemUnUsed,
 			"CpuUsage": VM.CpuUsage,
-			"Rx":       VM.InBytes,
-			"Tx":       VM.OutBytes,
-			"BkTotal":  VM.BkTotal[i],
-			"BkWr":     VM.BkWBytes[i],
-			"BkRd":     VM.BkRBytes[i],
+			"Rx":       int64(VM.NetStats[0].RxBytes),
+			"Tx":       int64(VM.NetStats[0].TxBytes),
+			"BkTotal":  int64(Block.Capacity),
+			"BkWr":     int64(Block.WrBytes),
+			"BkRd":     int64(Block.RdBytes),
 		}
 		log.Println("Send VM information:", tags, fields)
 		pt, err := client.NewPoint("vm_usage", tags, fields, time.Now())

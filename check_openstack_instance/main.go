@@ -19,15 +19,18 @@ func checkError(err error) {
 	}
 }
 
-func getVmStats(VM *instance, dom *libvirt.Domain) {
+func getVmStats(VM *instance, dom *libvirt.Domain, conn *libvirt.Connect) {
+	domsPoint := make([]*libvirt.Domain, 1)
+	domsPoint[0] = dom
+	domStats, err := conn.GetAllDomainStats(domsPoint, 0, 0)
+	checkError(err)
 	VM.dom = dom
 	VM.getName()
-	VM.getNicDev()
-	VM.getBlockDev()
 	VM.setMemValue()
-	VM.setCpuValue(CpuCore)
-	VM.setBlockStats()
-	VM.setInterfaceValue()
+	VM.setCpuValue(domStats[0].Cpu)
+	VM.setBlockStats(domStats[0].Block)
+	VM.setInterfaceValue(domStats[0].Net)
+	domStats[0].Domain.Free()
 }
 
 func start() {
@@ -37,14 +40,14 @@ func start() {
 	VMs := make([]instance, len(doms))
 	tmp := make([]instance, len(doms))
 	for i, dom := range doms {
-		getVmStats(&VMs[i], &dom)
+		getVmStats(&VMs[i], &dom, conn)
 		tmp[i] = VMs[i]
 		VMs[i].dom.Free()
 	}
 	time.Sleep(60 * time.Second)
 	doms = refreshDomain(conn)
 	for i, dom := range doms {
-		getVmStats(&VMs[i], &dom)
+		getVmStats(&VMs[i], &dom, conn)
 		VMs[i].setAllValue(tmp[i], CpuCore)
 		//VMs[i].getValue()
 		VMs[i].dom.Free()
