@@ -19,7 +19,7 @@ func checkError(err error) {
 	}
 }
 
-func getVmStats(VM *instance, dom *libvirt.Domain, conn *libvirt.Connect) {
+func getVmStats(VM *instance, dom *libvirt.Domain, conn *libvirt.Connect, vmQueue chan *instance) {
 	domsPoint := make([]*libvirt.Domain, 1)
 	domsPoint[0] = dom
 	domStats, err := conn.GetAllDomainStats(domsPoint, 0, 0)
@@ -30,28 +30,31 @@ func getVmStats(VM *instance, dom *libvirt.Domain, conn *libvirt.Connect) {
 	VM.setCpuValue(domStats[0].Cpu)
 	VM.setBlockStats(domStats[0].Block)
 	VM.setInterfaceValue(domStats[0].Net)
+	vmQueue <- VM
 	domStats[0].Domain.Free()
 }
 
 func start() {
+	vmQueue := make(chan *instance)
 	conn, err := libvirt.NewConnect("qemu:///system")
 	checkError(err)
 	doms := refreshDomain(conn)
 	VMs := make([]instance, len(doms))
 	tmp := make([]instance, len(doms))
 	for i, dom := range doms {
-		getVmStats(&VMs[i], &dom, conn)
-		tmp[i] = VMs[i]
+		go getVmStats(&VMs[i], &dom, conn, vmQueue)
+		tmp[i] = *<-vmQueue
 		VMs[i].dom.Free()
 	}
 	time.Sleep(60 * time.Second)
 	doms = refreshDomain(conn)
 	for i, dom := range doms {
-		getVmStats(&VMs[i], &dom, conn)
+		go getVmStats(&VMs[i], &dom, conn, vmQueue)
+		VMs[i] = *<-vmQueue
 		VMs[i].setAllValue(tmp[i], CpuCore)
-		//VMs[i].getValue()
+		VMs[i].getValue()
 		VMs[i].dom.Free()
-		influx.insertVmInfo(VMs[i])
+		//influx.insertVmInfo(VMs[i])
 	}
 	conn.Close()
 }
