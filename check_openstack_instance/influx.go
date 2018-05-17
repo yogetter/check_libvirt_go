@@ -22,9 +22,9 @@ func (d *db) init() {
 	file, _ := os.Open("db_conf.json")
 	decoder := json.NewDecoder(file)
 	err := decoder.Decode(d)
-	checkError(err)
+	CheckError(err)
 	Hostname, err = os.Hostname()
-	checkError(err)
+	CheckError(err)
 	log.Println("DB URL:", d.Url)
 	log.Println("DB Name:", d.Db)
 	log.Println("DB Username:", d.Username)
@@ -39,14 +39,14 @@ func (d *db) insertVmInfo(VM instance) {
 		Username: d.Username,
 		Password: d.Password,
 	})
-	checkError(err)
+	CheckError(err)
 	// Create a new point batch
 	for _, Block := range VM.BlockStats {
 		bp, err := client.NewBatchPoints(client.BatchPointsConfig{
 			Database:  d.Db,
 			Precision: "s",
 		})
-		checkError(err)
+		CheckError(err)
 		// Create a point and add to batch
 		tags := map[string]string{"uuid": VM.Id, "Name": VM.Name, "Hostname": Hostname, "BkDev": Block.Name}
 		fields := map[string]interface{}{
@@ -62,7 +62,7 @@ func (d *db) insertVmInfo(VM instance) {
 		}
 		log.Println("Send VM information:", tags, fields)
 		pt, err := client.NewPoint("vm_usage", tags, fields, time.Now())
-		checkError(err)
+		CheckError(err)
 		bp.AddPoint(pt)
 
 		// Write the batch

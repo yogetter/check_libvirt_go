@@ -3,73 +3,84 @@ package main
 import (
 	libvirt "github.com/libvirt/libvirt-go"
 	"log"
-	"runtime"
 	"time"
 )
 
-func refreshDomain(conn *libvirt.Connect) []libvirt.Domain {
-	doms, err := conn.ListAllDomains(libvirt.CONNECT_LIST_DOMAINS_ACTIVE)
-	checkError(err)
-	return doms
+func RefreshDomain(conn *libvirt.Connect) {
+	tmpDoms, err := conn.ListAllDomains(libvirt.CONNECT_LIST_DOMAINS_ACTIVE)
+	CheckError(err)
+	doms = tmpDoms
 }
 
-func checkError(err error) {
+func CheckError(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func getVmStats(VM *instance, dom *libvirt.Domain, conn *libvirt.Connect, vmQueue chan *instance) {
+func GetVmStats(VM *instance, dom *libvirt.Domain, conn *libvirt.Connect, VmQueue chan *instance) {
 	domsPoint := make([]*libvirt.Domain, 1)
 	domsPoint[0] = dom
 	domStats, err := conn.GetAllDomainStats(domsPoint, 0, 0)
-	checkError(err)
+	CheckError(err)
 	VM.dom = dom
-	VM.getName()
-	VM.setMemValue()
-	VM.setCpuValue(domStats[0].Cpu)
-	VM.setBlockStats(domStats[0].Block)
-	VM.setInterfaceValue(domStats[0].Net)
-	vmQueue <- VM
+	VM.SetVcpuNumber()
+	VM.GetName()
+	VM.SetMemValue()
+	VM.SetCpuValue(domStats[0].Cpu)
+	VM.SetBlockStats(domStats[0].Block)
+	VM.SetInterfaceValue(domStats[0].Net)
+	VmQueue <- VM
 	domStats[0].Domain.Free()
 }
 
-func start() {
-	vmQueue := make(chan *instance)
-	conn, err := libvirt.NewConnect("qemu:///system")
-	checkError(err)
-	doms := refreshDomain(conn)
-	VMs := make([]instance, len(doms))
-	tmp := make([]instance, len(doms))
+func InitVmInfo(conn *libvirt.Connect, VmQueue chan *instance) {
+	VMs = make([]instance, len(doms))
+	tmp = make([]instance, len(doms))
 	for i, dom := range doms {
-		go getVmStats(&VMs[i], &dom, conn, vmQueue)
-		tmp[i] = *<-vmQueue
+		go GetVmStats(&VMs[i], &dom, conn, VmQueue)
+		tmp[i] = *<-VmQueue
 		VMs[i].dom.Free()
 	}
-	time.Sleep(60 * time.Second)
-	doms = refreshDomain(conn)
-	for i, dom := range doms {
-		go getVmStats(&VMs[i], &dom, conn, vmQueue)
-		VMs[i] = *<-vmQueue
-		VMs[i].setAllValue(tmp[i], CpuCore)
-		VMs[i].getValue()
-		VMs[i].dom.Free()
-		//influx.insertVmInfo(VMs[i])
-	}
-	conn.Close()
+}
+
+func UpdateVmInfo(conn *libvirt.Connect, VmQueue chan *instance) {
+        for i, dom := range doms {
+                go GetVmStats(&VMs[i], &dom, conn, VmQueue)
+                VMs[i] = *<-VmQueue
+                VMs[i].SetAllValue(tmp[i])
+                VMs[i].GetValue()
+                VMs[i].dom.Free()
+                //influx.insertVmInfo(VMs[i])
+        }
 }
 
 var influx db
-var CpuCore int
+var doms []libvirt.Domain
+var VMs []instance
+var tmp []instance
 
 func main() {
 	influx = db{}
 	influx.init()
-	CpuCore = runtime.NumCPU()
-
 	for {
+	        VmQueue := make(chan *instance)
+		conn, err := libvirt.NewConnect("qemu:///system")
+		CheckError(err)
 		log.Println("Start collect VM's information")
-		start()
+		RefreshDomain(conn)
+		InitVms := len(doms)
+		log.Println("init VM's information:", InitVms)
+		InitVmInfo(conn, VmQueue)
+		time.Sleep(60 * time.Second)
+		RefreshDomain(conn)
+		log.Println("update VM's information:", len(doms))
+		if InitVms != len(doms) {
+			log.Println("Total VMs change, run again")
+			continue;
+		}
+		UpdateVmInfo(conn, VmQueue)
 		log.Println("End of collect")
+		conn.Close()
 	}
 }
