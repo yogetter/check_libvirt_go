@@ -72,3 +72,30 @@ func (d *db) insertVmInfo(VM instance) {
 	}
 	c.Close()
 }
+
+func (d *db) queryInfo(id string, command string) []client.Result {
+	var res []client.Result
+	// Create a new HTTPClient
+	c, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr:     d.Url,
+		Username: d.Username,
+		Password: d.Password,
+	})
+	checkError(err)
+	q := client.Query{
+		Command:  command + id,
+		Database: d.Db,
+	}
+	if response, err := c.Query(q); err == nil {
+		if response.Error() != nil {
+			log.Println("err1:", response.Error())
+		}
+		res = response.Results
+	} else {
+		log.Println("err2", err)
+	}
+	//log.Printf("%T", res[0].Series[0].Values)
+	log.Println("Success")
+	c.Close()
+	return res //[0].Series[0].Values
+}
